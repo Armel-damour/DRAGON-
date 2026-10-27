@@ -1,0 +1,8 @@
+:root { color-scheme: dark; --bg1:#12121f; --bg2:#04050a; --bone:#e9e2cf; --hint:#8d8fa8; box-sizing:border-box;
+        padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px); }
+html, body { height:100%; margin:0; overflow:hidden; background:var(--bg2); }
+body { background:radial-gradient(ellipse at 50% 40%, var(--bg1), var(--bg2) 70%); }
+canvas { position:fixed; inset:0; width:100%; height:100%; display:block; touch-action:none; }
+#hint { position:fixed; left:0; right:0; bottom:calc(28px + env(safe-area-inset-bottom,0px)); text-align:center;
+        font:italic 18px/1.4 Georgia, "Times New Roman", serif; color:var(--hint); transition:opacity 1.2s; pointer-events:none; }
+#hint.gone { opacity:0; }
