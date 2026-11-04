@@ -23,6 +23,7 @@
   addEventListener('pointermove', onMove);
   const embers = []; let fireUntil = 0;
   let zapUntil = 0, lastClick = -1e9, clicks = 0, flesh = false, fleshAmt = 0;
+  let human = false, humanAmt = 0, humanClickTimer = 0;
   addEventListener('pointerdown', e => {
     onMove(e);
     const now = performance.now();
@@ -30,7 +31,17 @@
     lastClick = now;
     if (clicks === 1) fireUntil = now + 1300;
     else if (clicks === 2) { zapUntil = now + 2500; fireUntil = 0; }
-    else if (clicks === 4) { flesh = !flesh; zapUntil = 0; fireUntil = 0; clicks = 0; lastClick = -1e9; }
+    else if (clicks === 3) {
+      clearTimeout(humanClickTimer);
+      humanClickTimer = setTimeout(() => {
+        human = !human;
+        zapUntil = 0; fireUntil = 0;
+        clicks = 0; lastClick = -1e9;
+      }, 350);
+    } else if (clicks === 4) {
+      clearTimeout(humanClickTimer);
+      flesh = !flesh; zapUntil = 0; fireUntil = 0; clicks = 0; lastClick = -1e9;
+    }
   });
   const mix = (a, b, t) => `rgb(${a.map((v, i) => Math.round(v + (b[i] - v) * t)).join(',')})`;
   const BONE_RGB = [233, 226, 207], SKIN = [58, 110, 92], SKIN_DK = [24, 52, 46], SKIN_LT = [96, 150, 118];
@@ -56,25 +67,42 @@
   const polar = (o, a, l) => ({ x: o.x + Math.cos(a) * l, y: o.y + Math.sin(a) * l });
 
   function drawWing(s, time) {
-    const sh = q[10], a = ang[10];
+    const wingIndex = 10 - 5 * humanAmt, wi = Math.floor(wingIndex), wt = wingIndex - wi;
+    const sh = { x: q[wi].x + (q[wi + 1].x - q[wi].x) * wt, y: q[wi].y + (q[wi + 1].y - q[wi].y) * wt };
+    const a = ang[wi] + Math.atan2(Math.sin(ang[wi + 1] - ang[wi]), Math.cos(ang[wi + 1] - ang[wi])) * wt;
+    const membraneRootIndex = 22 - 12 * humanAmt;
+    const ri = Math.floor(membraneRootIndex), rt = membraneRootIndex - ri;
+    const membraneRoot = { x: q[ri].x + (q[ri + 1].x - q[ri].x) * rt, y: q[ri].y + (q[ri + 1].y - q[ri].y) * rt };
     const amp = Math.min(0.5, 0.14 + speed * 0.02);
     const flap = Math.sin(time * 5) * amp;
     const el = polar(sh, a + s * (1.1 + flap), 58);
     const wr = polar(el, a + s * (1.55 + flap * 0.8), 62);
     const th = [1.8, 2.2, 2.6, 2.95], ln = [96, 108, 90, 64];
     const tips = th.map((t, k) => polar(wr, a + s * (t + flap * (1 + k * 0.25)), ln[k]));
+    ctx.save();
+    ctx.globalAlpha *= 1 - humanAmt;
     ctx.fillStyle = 'rgba(233,226,207,0.05)';
     ctx.beginPath(); ctx.moveTo(wr.x, wr.y);
     tips.forEach(t => ctx.lineTo(t.x, t.y));
-    ctx.lineTo(q[22].x, q[22].y); ctx.closePath(); ctx.fill();
+    ctx.lineTo(membraneRoot.x, membraneRoot.y); ctx.closePath(); ctx.fill();
     if (fleshAmt > 0.01) { ctx.fillStyle = `rgba(120,48,64,${0.8 * fleshAmt})`; ctx.fill(); }
     ctx.strokeStyle = 'rgba(233,226,207,0.12)'; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(q[22].x, q[22].y);
+    ctx.beginPath(); ctx.moveTo(membraneRoot.x, membraneRoot.y);
     tips.forEach(t => { ctx.lineTo(t.x, t.y); });
     ctx.stroke();
     line(sh, el, 4, BONE); line(el, wr, 3.2, BONE);
     tips.forEach((t, k) => { line(wr, t, 2.2 - k * 0.2, BONE); });
     [sh, el, wr].forEach(j => { ctx.fillStyle = BONE; ctx.beginPath(); ctx.arc(j.x, j.y, 3.6, 0, 7); ctx.fill(); });
+    ctx.restore();
+    if (humanAmt > 0.01) {
+      ctx.fillStyle = `rgba(120,48,64,${0.8 * humanAmt})`;
+      ctx.strokeStyle = `rgba(189,128,103,${humanAmt})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(wr.x, wr.y);
+      tips.forEach(t => ctx.lineTo(t.x, t.y));
+      ctx.lineTo(membraneRoot.x, membraneRoot.y); ctx.closePath();
+      ctx.fill(); ctx.stroke();
+    }
   }
 
   function drawRibs() {
@@ -123,6 +151,53 @@
       }
       ctx.restore();
     }
+    ctx.restore();
+  }
+
+  function drawHumanBody(time) {
+    if (humanAmt < 0.01) return;
+    const stride = Math.sin(time * 7) * 4;
+    ctx.save();
+    ctx.globalAlpha = humanAmt;
+    ctx.translate(q[5].x, q[5].y);
+    ctx.rotate(ang[5]);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    function limb(a, b, width) {
+      line(a, b, width + 3, '#30231f');
+      line(a, b, width, '#bd8067');
+      for (const joint of [a, b]) {
+        ctx.fillStyle = '#d49a7d';
+        ctx.beginPath(); ctx.arc(joint.x, joint.y, width * 0.48, 0, 7); ctx.fill();
+      }
+    }
+
+    ctx.fillStyle = '#874f48'; ctx.strokeStyle = '#30231f'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.ellipse(-5, 0, 24, 15, 0, 0, 7); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#bd8067';
+    ctx.beginPath(); ctx.ellipse(29, 0, 7, 6, 0, 0, 7); ctx.fill();
+
+    for (const side of [-1, 1]) {
+      const shoulder = { x: 7, y: side * 9 };
+      const elbow = { x: -1, y: side * 27 };
+      const hand = { x: 17, y: side * 42 };
+      limb(shoulder, elbow, 8);
+      limb(elbow, hand, 6);
+
+      const hip = { x: -19, y: side * 7 };
+      const knee = { x: -39 + stride, y: side * 20 };
+      const foot = { x: -56 + stride, y: side * 13 };
+      limb(hip, knee, 10);
+      limb(knee, foot, 7);
+    }
+
+    ctx.fillStyle = '#d49a7d'; ctx.strokeStyle = '#30231f'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.ellipse(41, 0, 11, 9, 0, 0, 7); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#30231f';
+    ctx.beginPath(); ctx.ellipse(39, -7, 10, 5, -0.15, Math.PI, 7); ctx.fill();
+    ctx.fillStyle = '#25202a';
+    ctx.beginPath(); ctx.arc(45, -2, 1.4, 0, 7); ctx.fill();
     ctx.restore();
   }
 
@@ -207,8 +282,17 @@
     ctx.clearRect(0, 0, W, H);
     drawWing(-1, time); drawWing(1, time);
     fleshAmt += ((flesh ? 1 : 0) - fleshAmt) * 0.06;
-    drawRibs(); drawSpine(); drawFlesh(); drawHead(time);
-    if (performance.now() < fireUntil) {
+    humanAmt += ((human ? 1 : 0) - humanAmt) * 0.06;
+    ctx.save();
+    ctx.globalAlpha = 1 - humanAmt;
+    drawRibs(); drawSpine(); drawFlesh();
+    ctx.restore();
+    drawHumanBody(time);
+    ctx.save();
+    ctx.globalAlpha *= 1 - humanAmt;
+    drawHead(time);
+    ctx.restore();
+    if (humanAmt < 0.01 && performance.now() < fireUntil) {
       const a0 = ang[0], mx0 = q[0].x + Math.cos(a0) * 48, my0 = q[0].y + Math.sin(a0) * 48;
       for (let k = 0; k < 7; k++) {
         const a = a0 + (Math.random() - 0.5) * 0.45, v = 5 + Math.random() * 6;
@@ -228,7 +312,7 @@
       ctx.beginPath(); ctx.arc(e.x, e.y, e.size, 0, 7); ctx.fill();
     }
     ctx.restore();
-    if (performance.now() < zapUntil) {
+    if (humanAmt < 0.01 && performance.now() < zapUntil) {
       const fade = Math.min(1, (zapUntil - performance.now()) / 2500 * 3);
       ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
       if (Math.random() < 0.08) { ctx.fillStyle = `rgba(120,180,255,${0.07 * fade})`; ctx.fillRect(0, 0, W, H); }
